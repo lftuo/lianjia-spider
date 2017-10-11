@@ -42,10 +42,10 @@ class spider_chengjiao(object):
                             for child in soup.find(class_="position").children:
                                 if type(child.find("div")) == bs4.element.Tag:
                                     for area_link in child.find("div").find_all("div")[1].find_all("a"):
-                                        finally_url = urlparse.urljoin(new_url,area_link['href'])
-                                        #print finally_url
+                                        area_url = urlparse.urljoin(new_url,area_link['href'])
+                                        #print area_url
                                         # 爬取小区域分页链接
-                                        spider.spider_list_url(finally_url)
+                                        spider.spider_list_url(area_url)
                 except Exception,e:
                     print e.message
         else:
