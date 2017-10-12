@@ -13,104 +13,153 @@ import urlparse
 import json
 import csv
 import sqlite3
+import time
 
 class spider_chengjiao(object):
 
     def spider_url(self):
 
         spider = spider_chengjiao()
-        spider.create_sqlitedb()
-
-        url = "https://gz.lianjia.com/chengjiao/"
-        user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:56.0) Gecko/20100101 Firefox/56.0"
-        #user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:56.0) Gecko/20100101 Firefox/56.0"
-        headers = {'User-Agent': user_agent}
-        r = requests.get(url,headers=headers)
+        spider.create_linkdb()
+        try:
+            url = "https://gz.lianjia.com/chengjiao/"
+            proxies = {"https": "http://182.42.43.176:9077"}
+            # user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:56.0) Gecko/20100101 Firefox/56.0"
+            #user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
+            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:56.0) Gecko/20100101 Firefox/56.0"
+            headers = {'User-Agent': user_agent}
+            r = requests.get(url,headers=headers,proxies=proxies)
+        except Exception,e:
+            print e
+            return
 
         #print r.text
         if r.text is not None:
             soup = BeautifulSoup(r.text,'lxml',from_encoding='utf-8')
             for child in soup.find(class_="position").children:
-                try:
-                    if type(child.find("div"))== bs4.element.Tag:
-                        for link in child.find("div").find_all("a"):
-                            # 获取大区域链接
-                            new_url = urlparse.urljoin(url,link['href'])
-                            # 获取小区域链接
-                            r = requests.get(new_url,headers)
+                if type(child.find("div"))== bs4.element.Tag:
+                    for link in child.find("div").find_all("a"):
+                        # 获取大区域链接
+                        new_url = urlparse.urljoin(url,link['href'])
+                        # 获取小区域链接
+                        try:
+                            r = requests.get(new_url,headers,proxies=proxies)
                             soup = BeautifulSoup(r.text, 'lxml', from_encoding='utf-8')
                             for child in soup.find(class_="position").children:
                                 if type(child.find("div")) == bs4.element.Tag:
-                                    for area_link in child.find("div").find_all("div")[1].find_all("a"):
-                                        area_url = urlparse.urljoin(new_url,area_link['href'])
-                                        #print area_url
-                                        # 爬取小区域分页链接
-                                        spider.spider_list_url(area_url)
-                except Exception,e:
-                    print e.message
+                                    if len(child.find("div").find_all("div")) > 0:
+                                        for area_link in child.find("div").find_all("div")[1].find_all("a"):
+                                            area_url = urlparse.urljoin(new_url,area_link['href'])
+                                            # print area_url
+                                            # 爬取小区域分页链接
+                                            spider.spider_list_url(area_url)
+                        except Exception,e:
+                            print e.message
         else:
             print 'content is null !'
 
     def spider_list_url(self,url):
-        user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:56.0) Gecko/20100101 Firefox/56.0"
-        #user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:56.0) Gecko/20100101 Firefox/56.0"
+
+        # user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:56.0) Gecko/20100101 Firefox/56.0"
+        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:56.0) Gecko/20100101 Firefox/56.0"
+        # user_agent = {"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:56.0) Gecko/20100101 Firefox/56.0"}
         headers = {'User-Agent': user_agent}
-        r = requests.get(url, headers=headers)
+        proxies = {"https": "http://182.42.43.176:9077"}
+        r = requests.get(url, headers=headers,proxies=proxies)
         soup = BeautifulSoup(r.text,'lxml',from_encoding='utf-8')
-        rows = []
+        # rows = []
         # 爬取分页数据列表
         if soup.find(class_="page-box house-lst-page-box") is not None:
             # print soup.find_all("div",class_="page-box house-lst-page-box")[0]
             page_data = soup.find_all("div",class_="page-box house-lst-page-box")[0]['page-data']
             page_url = soup.find_all("div",class_="page-box house-lst-page-box")[0]['page-url']
-            for i in range(int(json.loads(page_data).get("totalPage"))):
-                #print page_url,i+1
-                new_url = urlparse.urljoin(url,re.sub(r"{page}",str(i+1),page_url))
-                # 爬取房源信息详情页
-                r = requests.get(new_url, headers=headers)
-                soup = BeautifulSoup(r.text, 'lxml', from_encoding='utf-8')
-                # print soup.prettify()
-                for each in soup.find_all(class_="listContent")[0].find_all("li"):
-                    try:
-                        title = each.find_all("div", class_="info")[0].find(class_="title").a.string
-                        position_info1 = each.find_all("div", class_="flood")[0].find(class_="positionInfo").contents[1]
-                        position_info2 = each.find_all("div", class_="address")[0].find(class_="houseInfo").contents[1]
-                        deal_date = each.find_all("div", class_="address")[0].find(class_="dealDate").string
-                        price = each.find_all("div", class_="flood")[0].find(class_="unitPrice").find(class_="number").string
-                        detail_url = each.find_all("div", class_="info")[0].a['href']
+            title = ""
+            detail_url = ""
+            deal_date = ""
+            longitude = ""
+            latitude = ""
 
-                        location = spider.spider_position_info(detail_url)
-                        longitude = ""
-                        latitude = ""
-                        if len(location) == 2:
-                            longitude = location[0]
-                            latitude = location[1]
-                        print title, '\t', price,'\t',longitude,'\t',latitude,'\t',deal_date,'\t',position_info1, '\t', position_info2, '\t', detail_url
-                        content = (title,price,longitude,latitude,deal_date,position_info1,position_info2,detail_url)
-                        rows.append(content)
+            try:
+                if int(json.loads(page_data).get("totalPage")) > 0:
+                    for i in range(int(json.loads(page_data).get("totalPage"))):
+                    #print page_url,i+1
+                        new_url = urlparse.urljoin(url,re.sub(r"{page}",str(i+1),page_url))
+                        # 爬取房源信息详情页
+                        r = requests.get(new_url, headers=headers,proxies=proxies)
+                        soup = BeautifulSoup(r.text, 'lxml', from_encoding='utf-8')
+                        # print soup.prettify()
+                        if len(soup.find_all(class_="listContent")) > 0:
+                            for each in soup.find_all(class_="listContent")[0].find_all("li"):
+                                if len(each.find_all("div", class_="info")) == 1 :
+                                    title = each.find_all("div", class_="info")[0].find(class_="title").a.string
+                                    detail_url = each.find_all("div", class_="info")[0].a['href']
+                                #position_info1 = each.find_all("div", class_="flood")[0].find(class_="positionInfo").contents[1]
+                                #position_info2 = each.find_all("div", class_="address")[0].find(class_="houseInfo").contents[1]
+                                if len(each.find_all("div", class_="address")) == 1:
+                                    deal_date = each.find_all("div", class_="address")[0].find(class_="dealDate").string
+                                if len(each.find_all("div", class_="flood")) == 1:
+                                    price = each.find_all("div", class_="flood")[0].find(class_="unitPrice").find(class_="number").string
+                                print title,',', price,',',deal_date,',',detail_url
+                                content = (title, price, deal_date, detail_url)
+                                if len(content) == 4:
+                                    try:
+                                        conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia_link.db')
+                                    # 创建sqlite数据库
+                                        cur = conn.cursor()
+                                        cur.execute(' INSERT INTO gz_lianjia_link VALUES (?,?,?,?)',content)
+                                        conn.commit()
+                                        conn.close()
+                                    except Exception, e:
+                                        print e
+                                # TODO 爬取经纬度
+                                location = spider.spider_position_info(detail_url)
+                                #if len(location) == 2:
+                                #    longitude = location[0]
+                                #    latitude = location[1]
+                                #print title,',',price,',',longitude,',',latitude,',',deal_date,',',detail_url
+                                #content = (title,price,longitude,latitude,deal_date,detail_url)
+                                # rows.append(content)
+                                #if len(content) == 6:
+                                #    try:
+                                #        conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia.db')
+                                        # 创建sqlite数据库
+                                #        cur = conn.cursor()
+                                #        cur.execute(' INSERT INTO gz_lianjia VALUES (?,?,?,?,?,?)',content)
+                                #        conn.commit()
+                                #        conn.close()
+                                #    except Exception, e:
+                                #        print e
+                                    #finally:
+                                        #time.sleep(5)
 
-                    except Exception,e:
-                        print e.message
-        spider.insert_data(rows)
+            except Exception,e:
+                print e
+
+
+    def create_linkdb(self):
+        conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia_link.db')
+        # 创建sqlite数据库
+        cur = conn.cursor()
+        cur.execute('CREATE TABLE IF NOT EXISTS gz_lianjia_link(house_name VARCHAR(100),price VARCHAR(20),deal_date VARCHAR(20),detail_url VARCHAR(50))')
+        conn.close()
 
     def create_sqlitedb(self):
         conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia.db')
         # 创建sqlite数据库
         cur = conn.cursor()
-        cur.execute('CREATE TABLE IF NOT EXISTS gz_lianjia(house_name VARCHAR(100),price VARCHAR(20),longitude VARCHAR(20),latitude VARCHAR(20),deal_date VARCHAR(20),position_info1 VARCHAR(100),position_info2 VARCHAR(100),detail_url VARCHAR(50))')
+        cur.execute('CREATE TABLE IF NOT EXISTS gz_lianjia(house_name VARCHAR(100),price VARCHAR(20),longitude VARCHAR(20),latitude VARCHAR(20),deal_date VARCHAR(20),detail_url VARCHAR(50))')
         conn.close()
 
-    def insert_data(self,rows):
-        if len(rows) == 8 :
-            try:
-                conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia.db')
-                # 创建sqlite数据库
-                cur = conn.cursor()
-                cur.executemany(' INSERT INTO gz_lianjia VALUES (?,?,?,?,?,?,?,?)',rows)
-                conn.commit()
-                conn.close()
-            except Exception,e:
-                print e.message
+    def insert_data(self,content):
+        try:
+            conn = sqlite3.connect('E:/tuotuo/dbdata/gz_lianjia.db')
+            # 创建sqlite数据库
+            cur = conn.cursor()
+            cur.executemany(' INSERT INTO gz_lianjia VALUES (?,?,?,?,?,?,?,?)',content)
+            conn.commit()
+            conn.close()
+        except Exception,e:
+            print e.message
 
     # 测试爬取列表
     def spider_detail(self):
@@ -141,10 +190,11 @@ class spider_chengjiao(object):
 
 
 
-    # 测试解析html
+    # 解析经纬度
     def spider_position_info(self,url):
         # url = "https://gz.lianjia.com/chengjiao/GZ0001379573.html"
         user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:56.0) Gecko/20100101 Firefox/56.0"
+        # user_agent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36"
         headers = {'User-Agent': user_agent}
         r = requests.get(url, headers=headers)
         soup = BeautifulSoup(r.text, 'lxml', from_encoding='utf-8')
