@@ -2,7 +2,7 @@
 # -*- coding:utf8 -*-
 # @Author : tuolifeng
 # @Time : 2017-10-11 14:53:06
-# @File : dbconn.py
+# @File : DbconnTest.py
 # @Software : PyCharm
 # 数据库链接
 import sqlite3
